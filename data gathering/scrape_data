@@ -1,0 +1,56 @@
+import requests
+from bs4 import BeautifulSoup
+
+def scrape_products(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    product_listings = soup.find_all('div', class_='nf__part__detail')
+
+    for product in product_listings:
+        product_link = product.find('a')['href']
+        product_details = scrape_product_details('https://www.partselect.com' + product_link)
+        with open('product_details.txt', 'a', encoding='utf-8') as file:
+            file.write(f"Product Name: {product_details['Product Name']}\n")
+            file.write(f"Product Info: {product_details['Product Info']}\n")
+
+def scrape_product_details(url):
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    product_name = soup.find('h1').text.strip()
+    row_div = soup.find('div', class_='row')
+    col_div = row_div.find_all('div', class_='col-lg-6')[1]
+    all_divs = col_div.find_all('div')
+    product_info = ''
+    for div in all_divs:
+        text = div.get_text()
+        product_info += text.strip() + "\n"
+    
+    ul = col_div.select('ul.pd__section-links a.js-scrollTrigger')
+    li_links = [li['href'] for li in ul]
+    
+    for i, li in enumerate(li_links):
+        full_url = url + li
+        li_response = requests.get(full_url)
+        li_text = BeautifulSoup(li_response.text, 'html.parser')
+        div = li_text.find_all('div', class_='expanded')[i]
+        text = div.get_text()
+        yt_div = div.find('div', class_='yt-video')
+        if yt_div and li[1:] == "PartVideos":
+            text += "Installation Guide: " + full_url
+        product_info += text.strip() + "\n"
+
+    details = {
+        'Product Name': product_name,
+        'Product Info': product_info
+    }
+
+    return details
+
+if __name__ == '__main__':
+
+    urls = ['https://www.partselect.com/Dishwasher-Parts.htm', 'https://www.partselect.com/Refrigerator-Parts.htm']
+    print("Extracting...")
+    for url in urls:
+        scrape_products(url)
